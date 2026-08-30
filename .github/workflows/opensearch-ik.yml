@@ -1,0 +1,134 @@
+name: opensearch-ik
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - opensearch-ik/**
+      - .github/workflows/opensearch-ik.yml
+  pull_request:
+    paths:
+      - opensearch-ik/**
+      - .github/workflows/opensearch-ik.yml
+  # Weekly rebuild so the image picks up base-image security patches.
+  schedule:
+    - cron: '3 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One entry per OpenSearch version to publish. `tags` carries the tag
+          # policy for that entry, so only the newest one claims 3 / latest.
+          - opensearch: '3.8.0'
+            tags: |
+              type=raw,value=3.8.0
+              type=raw,value=3.8
+              type=raw,value=3
+              type=raw,value=latest
+    uses: docker/github-builder/.github/workflows/build.yml@v1
+    permissions:
+      contents: read   # fetch the repository content
+      packages: write  # push to ghcr.io with GITHUB_TOKEN
+      id-token: write  # sign provenance and GitHub Actions cache entries
+    with:
+      job-name-prefix: ${{ matrix.opensearch }}
+      context: ./opensearch-ik
+      output: image
+      push: ${{ github.event_name != 'pull_request' }}
+      platforms: linux/amd64,linux/arm64
+      cache: true
+      cache-scope: opensearch-ik-${{ matrix.opensearch }}
+      build-args: |
+        OPENSEARCH_VERSION=${{ matrix.opensearch }}
+      set-meta-labels: true
+      set-meta-annotations: true
+      # Requires the DOCKERHUB_USERNAME repository variable. Drop the docker.io
+      # line (and its registry-auths entry) to publish to GHCR only.
+      meta-images: |
+        docker.io/${{ vars.DOCKERHUB_USERNAME }}/opensearch-ik
+        ghcr.io/${{ github.repository_owner }}/opensearch-ik
+      meta-flavor: |
+        latest=false
+      meta-tags: ${{ matrix.tags }}
+      # metadata-action already derives source/url/revision/created from the repo.
+      # These three are overridden because its defaults are repo-level and this is
+      # one image among several. Mirrored into annotations because GHCR reads the
+      # manifest annotations, not the config labels, for a multi-arch package page.
+      meta-labels: |
+        org.opencontainers.image.title=opensearch-ik
+        org.opencontainers.image.description=OpenSearch ${{ matrix.opensearch }} with the INFINI analysis-ik plugin preinstalled
+        org.opencontainers.image.version=${{ matrix.opensearch }}
+      meta-annotations: |
+        org.opencontainers.image.title=opensearch-ik
+        org.opencontainers.image.description=OpenSearch ${{ matrix.opensearch }} with the INFINI analysis-ik plugin preinstalled
+        org.opencontainers.image.version=${{ matrix.opensearch }}
+    secrets:
+      registry-auths: |
+        - registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+  # Verifies the published image really starts and loads the plugin. Runs after
+  # the push, so a failure here means "pull the tag", not "the tag never landed".
+  smoke-test:
+    needs: build
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with the build matrix above.
+        opensearch: ['3.8.0']
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start OpenSearch
+        run: |
+          docker run -d --name opensearch-ik -p 9200:9200 \
+            -e discovery.type=single-node \
+            -e DISABLE_SECURITY_PLUGIN=true \
+            -e DISABLE_INSTALL_DEMO_CONFIG=true \
+            -e OPENSEARCH_JAVA_OPTS='-Xms1g -Xmx1g' \
+            "ghcr.io/${{ github.repository_owner }}/opensearch-ik:${{ matrix.opensearch }}"
+
+      - name: Wait for the node to answer
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:9200 >/dev/null; then exit 0; fi
+            sleep 5
+          done
+          echo "node did not come up" >&2
+          docker logs opensearch-ik >&2
+          exit 1
+
+      - name: Assert analysis-ik is loaded
+        run: curl -fsS 'http://localhost:9200/_cat/plugins?v' | tee /dev/stderr | grep -q analysis-ik
+
+      - name: Assert ik_smart tokenizes Chinese
+        run: |
+          curl -fsS -X POST http://localhost:9200/_analyze \
+            -H 'Content-Type: application/json' \
+            -d '{"analyzer":"ik_smart","text":"计算机汉字输入方法"}' \
+            | tee /dev/stderr | grep -q '"计算机"'
