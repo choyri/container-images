@@ -6,10 +6,10 @@ plugin preinstalled.
 
 ## Tags
 
-| Tag                    | Contents                                      |
-| ---------------------- | --------------------------------------------- |
-| `3.8.0`                | OpenSearch 3.8.0 + analysis-ik 3.8.0          |
-| `3.8`, `3`, `latest`   | Moving aliases for the newest 3.x build       |
+| Tag                          | Contents                             |
+| ---------------------------- | ------------------------------------ |
+| `3.8.0`, `3.8`                | OpenSearch 3.8.0 + analysis-ik 3.8.0 |
+| `3.9.0`, `3.9`, `3`, `latest` | OpenSearch 3.9.0 + analysis-ik 3.9.0 |
 
 Platforms: `linux/amd64`, `linux/arm64`.
 
@@ -18,7 +18,7 @@ Platforms: `linux/amd64`, `linux/arm64`.
 ```yaml
 services:
   opensearch:
-    image: ghcr.io/choyri/opensearch-ik:3.8.0
+    image: ghcr.io/choyri/opensearch-ik:3.9.0
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
@@ -47,12 +47,16 @@ $ curl -sk -u admin:<password> -X POST https://localhost:9200/_analyze \
 ## Building locally
 
 ```console
-$ docker build --build-arg OPENSEARCH_VERSION=3.8.0 -t opensearch-ik:3.8.0 ./opensearch-ik
+$ docker build --build-arg OPENSEARCH_VERSION=3.9.0 -t opensearch-ik:3.9.0 ./opensearch-ik
 ```
 
 ## Publishing a new version
 
-Add an entry to the `build` matrix in
-[`.github/workflows/opensearch-ik.yml`](../.github/workflows/opensearch-ik.yml)
-and move the `3` / `latest` aliases onto it. The plugin must already exist at
-`https://release.infinilabs.com/analysis-ik/stable/`.
+Add an entry with its version and tags to the `build` matrix in
+[`.github/workflows/opensearch-ik.yml`](../.github/workflows/opensearch-ik.yml),
+and add the same version to the `smoke-test` matrix. Move the `3` / `latest`
+aliases onto the newest entry so parallel builds do not overwrite those tags.
+
+Update the default `OPENSEARCH_VERSION` in the Dockerfile and the examples above
+to the newest version. The matching plugin must already exist at
+`https://get.infini.cloud/opensearch/analysis-ik/<version>`.

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG OPENSEARCH_VERSION=3.8.0
+ARG OPENSEARCH_VERSION=3.9.0
 
 FROM opensearchproject/opensearch:${OPENSEARCH_VERSION}
 
