@@ -9,6 +9,7 @@ GHCR.
 | Directory                          | Image             | What it adds                                |
 | ---------------------------------- | ----------------- | ------------------------------------------- |
 | [`opensearch-ik/`](opensearch-ik/) | `opensearch-ik`   | OpenSearch + INFINI `analysis-ik` plugin    |
+| [`warp/`](warp/) | `warp` | Cloudflare WARP + 3proxy HTTP / SOCKS5 proxies |
 
 ## Repository setup
 
@@ -34,6 +35,6 @@ assembly, caching and signed SLSA provenance.
 
 - Pin an exact upstream version via a build arg; never build `FROM` a floating
   tag, so a rebuild of a given tag is reproducible.
-- Every image is rebuilt weekly on a schedule to pick up base-image patches.
+- OpenSearch is rebuilt weekly; WARP builds on changes or manual dispatch.
 - Every workflow ends with a smoke test that starts the published image and
   asserts the added functionality actually works.

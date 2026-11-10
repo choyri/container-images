@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!entrypoint.sh
+!healthcheck.sh
+!3proxy.cfg
+!3proxy-LICENSE
