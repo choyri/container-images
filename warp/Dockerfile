@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG THREEPROXY_VERSION=1.0.3
+ARG THREEPROXY_VERSION=1.0.4
 ARG MESH_VERSION=2026.10.0
 
 FROM 3proxy/3proxy:${THREEPROXY_VERSION} AS threeproxy

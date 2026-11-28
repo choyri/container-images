@@ -24,6 +24,13 @@ GHCR needs no secret — the workflows push with the built-in `GITHUB_TOKEN` and
 `packages: write` permission. To publish to GHCR only, delete the `docker.io`
 lines from a workflow's `meta-images` and `registry-auths`.
 
+Install the [Renovate GitHub App](https://github.com/apps/renovate) and grant it
+access to this repository. [`.github/renovate.json`](.github/renovate.json)
+configures updates for Dockerfile image versions and GitHub Actions
+dependencies. The hosted app opens pull requests when updates are available.
+Changes to the contents of an existing Docker image tag do not trigger update
+pull requests.
+
 ## Layout
 
 One workflow file per image, named after its directory. Each is a thin caller of
@@ -33,8 +40,8 @@ assembly, caching and signed SLSA provenance.
 
 ## Conventions
 
-- Pin an exact upstream version via a build arg; never build `FROM` a floating
-  tag, so a rebuild of a given tag is reproducible.
-- OpenSearch is rebuilt weekly; WARP builds on changes or manual dispatch.
-- Every workflow ends with a smoke test that starts the published image and
-  asserts the added functionality actually works.
+- Keep exact upstream version tags in each Dockerfile.
+  Workflows read version metadata from it instead of maintaining duplicate pins.
+- Build on relevant file changes or manual dispatch; pull requests build without
+  publishing. Publish only from `master`, then smoke-test the resulting digest.
+- Keep image-specific tag and update policies in each image's README.

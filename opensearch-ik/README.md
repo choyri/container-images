@@ -1,29 +1,37 @@
 # opensearch-ik
 
-[OpenSearch](https://github.com/opensearch-project/opensearch) with the
+[OpenSearch](https://github.com/opensearch-project/OpenSearch) with the
 [INFINI analysis-ik](https://github.com/infinilabs/analysis-ik) Chinese analysis
 plugin preinstalled.
 
 ## Tags
 
-| Tag                          | Contents                             |
-| ---------------------------- | ------------------------------------ |
-| `3.8.0`, `3.8`                | OpenSearch 3.8.0 + analysis-ik 3.8.0 |
-| `3.9.0`, `3.9`, `3`, `latest` | OpenSearch 3.9.0 + analysis-ik 3.9.0 |
+`OPENSEARCH_VERSION` in the [Dockerfile](Dockerfile) is the only version pin.
+The workflow automatically generates these tags:
+
+| Tag | Contents |
+| --- | --- |
+| `X.Y.Z` | The matching OpenSearch and analysis-ik versions |
+| `X.Y` | The last published patch in that minor series |
+| `X` | The last published version in that major series |
+| `latest` | The latest maintained version |
 
 Platforms: `linux/amd64`, `linux/arm64`.
+
+Only the current version is built. Historical images remain available without
+automatic backports. Use an exact version tag in production, or an image digest
+when its contents must stay fixed.
 
 ## Usage
 
 ```yaml
 services:
   opensearch:
-    image: ghcr.io/choyri/opensearch-ik:3.9.0
+    image: ghcr.io/choyri/opensearch-ik:3
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-      # - OPENSEARCH_INITIAL_ADMIN_PASSWORD=<a-strong-password>
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_PERFORMANCE_ANALYZER_AGENT_CLI=true
     ports:
@@ -35,28 +43,39 @@ volumes:
   opensearch-data:
 ```
 
-Check the plugin is live:
+This example disables the security plugin and binds the port to localhost.
+Check plugin loading and Chinese tokenization:
 
-```console
-$ curl -sk -u admin:<password> 'https://localhost:9200/_cat/plugins?v' | grep analysis-ik
-$ curl -sk -u admin:<password> -X POST https://localhost:9200/_analyze \
+```sh
+curl -fsS 'http://localhost:9200/_cat/plugins?v' | grep analysis-ik
+curl -fsS -X POST http://localhost:9200/_analyze \
     -H 'Content-Type: application/json' \
     -d '{"analyzer":"ik_smart","text":"计算机汉字输入方法"}'
 ```
 
 ## Building locally
 
-```console
-$ docker build --build-arg OPENSEARCH_VERSION=3.9.0 -t opensearch-ik:3.9.0 ./opensearch-ik
+From the repository root, without repeating the version:
+
+```sh
+docker build -t opensearch-ik:local ./opensearch-ik
 ```
 
-## Publishing a new version
+## Updates and publishing
 
-Add an entry with its version and tags to the `build` matrix in
-[`.github/workflows/opensearch-ik.yml`](../.github/workflows/opensearch-ik.yml),
-and add the same version to the `smoke-test` matrix. Move the `3` / `latest`
-aliases onto the newest entry so parallel builds do not overwrite those tags.
+[Renovate](../.github/renovate.json) monitors the official image for new version
+tags and updates `OPENSEARCH_VERSION` in the Dockerfile through pull requests.
+For a manual upgrade, change that argument's default value.
 
-Update the default `OPENSEARCH_VERSION` in the Dockerfile and the examples above
-to the newest version. The matching plugin must already exist at
-`https://get.infini.cloud/opensearch/analysis-ik/<version>`.
+Pull requests build both platforms without publishing. The matching plugin must
+exist at `https://get.infini.cloud/opensearch/analysis-ik/<version>`, or plugin
+installation fails. If the plugin is not available yet, leave the upgrade PR
+open and rerun CI after its release before merging.
+
+Changes merged to `master` publish the image and smoke-test the resulting digest
+on both architectures. Smoke tests run after publishing, so a failure means the
+tags already exist and require investigation. There is no scheduled rebuild;
+manual publishing is available from `master`.
+
+See [repository setup](../README.md#repository-setup) for the one-time Renovate
+GitHub App connection.

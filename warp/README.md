@@ -5,9 +5,12 @@ SOCKS5 proxies powered by [3proxy](https://github.com/3proxy/3proxy).
 
 ## Tags
 
-| Tags | Contents |
+Tags follow `MESH_VERSION` in the [Dockerfile](Dockerfile):
+
+| Tag | Contents |
 | --- | --- |
-| `2026.10.0`, `latest` | Cloudflare Mesh 2026.10.0 + 3proxy 1.0.3 |
+| `YYYY.M.P` | That Cloudflare Mesh version with the pinned 3proxy dependency |
+| `latest` | The latest published build |
 
 Platforms: `linux/amd64`, `linux/arm64`.
 
@@ -71,11 +74,26 @@ From the repository root:
 $ docker build --pull -t warp:local ./warp
 ```
 
-## Publishing a new version
+## Updates and publishing
 
-Update the versions in `Dockerfile` and the build arguments, tags, cache scope,
-and version metadata in [the workflow](../.github/workflows/warp.yml).
-Keep the tags and usage example above in sync.
+Renovate monitors both `cloudflare/mesh` and `3proxy/3proxy` for new version tags
+and updates the version arguments in the Dockerfile through pull requests.
+
+The workflow reads `MESH_VERSION` from the Dockerfile to generate the version
+tag, cache scope and version metadata. Both dependency versions are maintained
+only in the Dockerfile; no workflow or documentation version edits are needed.
+
+Pull requests build both platforms without publishing. Changes merged to
+`master` publish the image and run the proxy smoke tests against the resulting
+digest. These tests cover HTTP and SOCKS5 proxies without registering a WARP
+device in CI. Manual publishing is also available from `master`.
+
+A 3proxy update republishes the current Mesh version tag.
+Pin the output image digest when its contents must stay fixed.
+Historical tags remain available and are not rebuilt automatically.
+
+See [repository setup](../README.md#repository-setup) for the one-time Renovate
+GitHub App connection.
 
 ## License
 
